@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pysh"
+version = "0.1.0"
+description = "Python'da yozilgan oddiy Unix shell (Build Your Own X)"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+# `pip install -e .` dan keyin terminalda `pysh` buyrug'i paydo bo'ladi.
+[project.scripts]
+pysh = "pysh.cli:main"
+
+[tool.setuptools]
+packages = ["pysh"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
