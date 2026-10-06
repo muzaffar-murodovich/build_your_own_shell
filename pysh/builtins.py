@@ -1,16 +1,16 @@
-"""Builtin (ichki) buyruqlar.
+"""Builtin (internal) commands.
 
-Builtin — shell o'zi bajaradigan buyruq. U yangi jarayon (process) ochmaydi.
+A builtin is a command that the shell runs itself. It does not start a new process.
 
-Nima uchun `cd` builtin bo'lishi SHART?
-Har bir jarayonning o'z joriy papkasi bor.
-Agar `cd` alohida dastur bo'lsa, u faqat O'Z papkasini o'zgartiradi
-va darhol tugaydi. Shell papkasi o'zgarmaydi.
-`exit` va `export` ham shu sababli builtin.
+Why MUST `cd` be a builtin?
+Each process has its own current directory.
+If `cd` is a separate program, it changes only ITS OWN directory
+and then stops immediately. The directory of the shell does not change.
+`exit` and `export` are builtins for the same reason.
 
-Har bir builtin funksiya:
-    - kirish:  shell obyekti va argumentlar (buyruq nomisiz).
-    - chiqish: exit kod (0 = muvaffaqiyat).
+Each builtin function:
+    - input:  the shell object and the arguments (without the command name).
+    - output: the exit code (0 = success).
 """
 
 import os
@@ -25,12 +25,12 @@ if TYPE_CHECKING:
 
 BuiltinFunc = Callable[["Shell", list[str]], int]
 
-# Nom -> funksiya. @builtin dekoratori bu lug'atni to'ldiradi.
+# Name -> function. The @builtin decorator fills this dictionary.
 BUILTINS: dict[str, BuiltinFunc] = {}
 
 
 def builtin(name: str):
-    """Funksiyani builtin sifatida ro'yxatdan o'tkazing."""
+    """Register the function as a builtin."""
     def register(func: BuiltinFunc) -> BuiltinFunc:
         BUILTINS[name] = func
         return func
@@ -39,31 +39,31 @@ def builtin(name: str):
 
 @builtin("cd")
 def cd(shell: "Shell", args: list[str]) -> int:
-    """cd [papka] — joriy papkani o'zgartiring. `cd -` oldingi papkaga qaytadi."""
+    """cd [dir] — change the current directory. `cd -` goes back to the previous directory."""
     if len(args) > 1:
-        error("cd: argumentlar juda ko'p")
+        error("cd: too many arguments")
         return 1
 
     target = args[0] if args else os.environ.get("HOME", "/")
     if target == "-":
         target = os.environ.get("OLDPWD", "")
         if not target:
-            error("cd: OLDPWD o'rnatilmagan")
+            error("cd: OLDPWD not set")
             return 1
         print(target)
 
     old = os.getcwd()
     try:
-        # Asosiy ish shu yerda: OS'dan shell jarayoni papkasini o'zgartirishni so'rang.
+        # The main work is here: ask the OS to change the directory of the shell process.
         os.chdir(target)
     except FileNotFoundError:
-        error(f"cd: {target}: bunday papka yo'q")
+        error(f"cd: {target}: no such directory")
         return 1
     except NotADirectoryError:
-        error(f"cd: {target}: papka emas")
+        error(f"cd: {target}: not a directory")
         return 1
     except PermissionError:
-        error(f"cd: {target}: ruxsat yo'q")
+        error(f"cd: {target}: permission denied")
         return 1
 
     os.environ["OLDPWD"] = old
@@ -73,14 +73,14 @@ def cd(shell: "Shell", args: list[str]) -> int:
 
 @builtin("pwd")
 def pwd(shell: "Shell", args: list[str]) -> int:
-    """pwd — joriy papkani ko'rsating."""
+    """pwd — show the current directory."""
     print(os.getcwd())
     return 0
 
 
 @builtin("echo")
 def echo(shell: "Shell", args: list[str]) -> int:
-    """echo [-n] [matn...] — matnni chiqaring. -n: oxirida yangi qator yo'q."""
+    """echo [-n] [text...] — print the text. -n: no newline at the end."""
     newline = True
     if args and args[0] == "-n":
         newline = False
@@ -91,19 +91,19 @@ def echo(shell: "Shell", args: list[str]) -> int:
 
 @builtin("exit")
 def exit_(shell: "Shell", args: list[str]) -> int:
-    """exit [kod] — shell'ni to'xtating."""
+    """exit [code] — stop the shell."""
     if not args:
         raise ShellExit(shell.last_status)
     try:
         raise ShellExit(int(args[0]))
     except ValueError:
-        error(f"exit: {args[0]}: raqam kerak")
+        error(f"exit: {args[0]}: numeric argument required")
         raise ShellExit(2)
 
 
 @builtin("export")
 def export(shell: "Shell", args: list[str]) -> int:
-    """export NOM=QIYMAT — muhit o'zgaruvchisini o'rnating. Argumentsiz: hammasini ko'rsating."""
+    """export NAME=VALUE — set an environment variable. Without arguments: show all of them."""
     if not args:
         for name, value in sorted(os.environ.items()):
             print(f'export {name}="{value}"')
@@ -113,17 +113,17 @@ def export(shell: "Shell", args: list[str]) -> int:
     for arg in args:
         name, sep, value = arg.partition("=")
         if not name.isidentifier():
-            error(f"export: '{arg}': noto'g'ri nom")
+            error(f"export: '{arg}': not a valid identifier")
             status = 1
         elif sep:
-            # os.environ'ga yozing. Bola jarayonlar uni meros oladi.
+            # Write to os.environ. Child processes inherit it.
             os.environ[name] = value
     return status
 
 
 @builtin("unset")
 def unset(shell: "Shell", args: list[str]) -> int:
-    """unset NOM... — o'zgaruvchini o'chiring."""
+    """unset NAME... — remove a variable."""
     for name in args:
         os.environ.pop(name, None)
     return 0
@@ -131,7 +131,7 @@ def unset(shell: "Shell", args: list[str]) -> int:
 
 @builtin("history")
 def history(shell: "Shell", args: list[str]) -> int:
-    """history [-c] — buyruqlar tarixini ko'rsating. -c: tarixni tozalang."""
+    """history [-c] — show the command history. -c: clear the history."""
     if args == ["-c"]:
         shell.clear_history()
         return 0
@@ -142,37 +142,37 @@ def history(shell: "Shell", args: list[str]) -> int:
 
 @builtin("type")
 def type_(shell: "Shell", args: list[str]) -> int:
-    """type NOM... — buyruq builtin'mi yoki fayl ekanini ko'rsating."""
+    """type NAME... — show if a command is a builtin or a file."""
     status = 0
     for name in args:
         if name in BUILTINS:
-            print(f"{name} — shell builtin")
+            print(f"{name} is a shell builtin")
         elif path := shutil.which(name):
-            print(f"{name} — {path}")
+            print(f"{name} is {path}")
         else:
-            error(f"type: {name}: topilmadi")
+            error(f"type: {name}: not found")
             status = 1
     return status
 
 
 @builtin("help")
 def help_(shell: "Shell", args: list[str]) -> int:
-    """help — yordam matnini ko'rsating."""
-    print("pysh — Python'da yozilgan oddiy shell.\n")
-    print("Builtin buyruqlar:")
+    """help — show the help text."""
+    print("pysh — a simple shell written in Python.\n")
+    print("Builtin commands:")
     for func in BUILTINS.values():
-        # Docstring'ning birinchi qatori — qisqa tavsif.
+        # The first line of the docstring is a short description.
         print(f"  {func.__doc__.splitlines()[0]}")
     print(
-        "\nSintaksis:\n"
-        "  a | b          pipe: a chiqishi b kirishiga boradi\n"
-        "  a > f, a >> f  stdout'ni faylga yozing (>> qo'shadi)\n"
-        "  a < f          stdin'ni fayldan oling\n"
-        "  a 2> f, 2>&1   stderr'ni faylga yoki stdout'ga yo'naltiring\n"
-        "  a && b         a muvaffaqiyatli bo'lsa, b ni bajaring\n"
-        "  a || b         a xato bersa, b ni bajaring\n"
-        "  a ; b          a dan keyin b ni bajaring\n"
-        "  $VAR ${VAR} $? ~ *.py 'matn' \"matn\"  — ochish (expansion)\n"
-        "  NOM=qiymat     o'zgaruvchi o'rnating"
+        "\nSyntax:\n"
+        "  a | b          pipe: the output of a goes to the input of b\n"
+        "  a > f, a >> f  write stdout to a file (>> appends)\n"
+        "  a < f          read stdin from a file\n"
+        "  a 2> f, 2>&1   send stderr to a file or to stdout\n"
+        "  a && b         run b if a succeeds\n"
+        "  a || b         run b if a fails\n"
+        "  a ; b          run b after a\n"
+        "  $VAR ${VAR} $? ~ *.py 'text' \"text\"  — expansion\n"
+        "  NAME=value     set a variable"
     )
     return 0

@@ -1,8 +1,8 @@
-"""2-bosqich: Parser.
+"""Stage 2: Parser.
 
-Parser token'lardan daraxt (AST) quradi.
+The parser builds a tree (AST) from the tokens.
 
-Grammatika (qoidalar):
+Grammar (rules):
 
     command_list := pipeline ( (";" | "&&" | "||") pipeline )* [";"]
     pipeline     := command ( "|" command )*
@@ -10,7 +10,7 @@ Grammatika (qoidalar):
     redirect     := (">" | ">>" | "<" | "2>" | "2>>") WORD
                   | "2>&1"
 
-Misol:  make && ls | wc -l > n.txt
+Example:  make && ls | wc -l > n.txt
 
     CommandList
     ├── (None, Pipeline[ make ])
@@ -28,36 +28,36 @@ LIST_OPS = {";", "&&", "||"}
 
 @dataclass
 class Redirect:
-    op: str                    # Misol: ">"
-    target: str | None = None  # Fayl nomi (xom). "2>&1" uchun None.
+    op: str                    # Example: ">"
+    target: str | None = None  # The file name (raw). None for "2>&1".
 
 
 @dataclass
 class Command:
-    """Bitta oddiy buyruq. Misol: `grep -i py > out.txt`."""
-    argv: list[str] = field(default_factory=list)  # Xom so'zlar.
+    """One simple command. Example: `grep -i py > out.txt`."""
+    argv: list[str] = field(default_factory=list)  # Raw words.
     redirects: list[Redirect] = field(default_factory=list)
 
 
 @dataclass
 class Pipeline:
-    """`|` bilan ulangan buyruqlar. Misol: `ls | sort | head`."""
+    """Commands that `|` connects. Example: `ls | sort | head`."""
     commands: list[Command]
 
 
 @dataclass
 class CommandList:
-    """Pipeline'lar ketma-ketligi.
+    """A sequence of pipelines.
 
-    Har bir element: (operator, pipeline).
-    Operator oldingi pipeline bilan bog'lanishni ko'rsatadi.
-    Birinchi elementda operator None bo'ladi.
+    Each item: (operator, pipeline).
+    The operator shows the connection to the previous pipeline.
+    In the first item, the operator is None.
     """
     items: list[tuple[str | None, Pipeline]]
 
 
 def parse(tokens: list[Token]) -> CommandList:
-    """Token'lardan CommandList quring."""
+    """Build a CommandList from the tokens."""
     return _Parser(tokens).parse_list()
 
 
@@ -66,14 +66,14 @@ class _Parser:
         self.tokens = tokens
         self.pos = 0
 
-    # --- Yordamchi metodlar ---
+    # --- Helper methods ---
 
     def _peek(self) -> Token | None:
-        """Joriy token'ni qaytaring. Uni o'tkazib yubormang."""
+        """Return the current token. Do not move past it."""
         return self.tokens[self.pos] if self.pos < len(self.tokens) else None
 
     def _next(self) -> Token:
-        """Joriy token'ni qaytaring va keyingisiga o'ting."""
+        """Return the current token and move to the next one."""
         token = self.tokens[self.pos]
         self.pos += 1
         return token
@@ -82,7 +82,7 @@ class _Parser:
         token = self._peek()
         return token is not None and token.kind == "OP" and token.value in ops
 
-    # --- Grammatika qoidalari ---
+    # --- Grammar rules ---
 
     def parse_list(self) -> CommandList:
         if not self.tokens:
@@ -90,12 +90,12 @@ class _Parser:
 
         items: list[tuple[str | None, Pipeline]] = [(None, self.parse_pipeline())]
         while self._peek() is not None:
-            op = self._next().value  # parse_pipeline() faqat LIST_OPS'da to'xtaydi.
+            op = self._next().value  # parse_pipeline() stops only at LIST_OPS.
             if self._peek() is None:
-                # Oxiridagi ";" ruxsat etilgan: `ls;`
+                # A ";" at the end is permitted: `ls;`
                 if op == ";":
                     break
-                raise ParseError(f"'{op}' dan keyin buyruq kutilgan")
+                raise ParseError(f"command expected after '{op}'")
             items.append((op, self.parse_pipeline()))
         return CommandList(items)
 
@@ -104,13 +104,13 @@ class _Parser:
         while self._at_op({"|"}):
             self._next()
             if self._peek() is None:
-                raise ParseError("'|' dan keyin buyruq kutilgan")
+                raise ParseError("command expected after '|'")
             commands.append(self.parse_command())
         return Pipeline(commands)
 
     def parse_command(self) -> Command:
         cmd = Command()
-        # LIST_OPS yoki "|" ko'rinmaguncha so'z va redirect'larni yig'ing.
+        # Collect words and redirects until you see LIST_OPS or "|".
         while self._peek() is not None and not self._at_op(LIST_OPS | {"|"}):
             token = self._next()
             if token.kind == "WORD":
@@ -118,14 +118,14 @@ class _Parser:
             elif token.value == "2>&1":
                 cmd.redirects.append(Redirect("2>&1"))
             else:
-                # Redirect operatoridan keyin fayl nomi bo'lishi shart.
+                # A file name must come after a redirect operator.
                 target = self._peek()
                 if target is None or target.kind != "WORD":
-                    raise ParseError(f"'{token.value}' dan keyin fayl nomi kutilgan")
+                    raise ParseError(f"file name expected after '{token.value}'")
                 cmd.redirects.append(Redirect(token.value, self._next().value))
 
         if not cmd.argv and not cmd.redirects:
             bad = self._peek()
-            near = bad.value if bad else "qator oxiri"
-            raise ParseError(f"sintaksis xatosi: '{near}' yaqinida")
+            near = bad.value if bad else "end of line"
+            raise ParseError(f"syntax error near '{near}'")
         return cmd

@@ -1,14 +1,14 @@
-"""pysh — Python'da yozilgan oddiy Unix shell.
+"""pysh — a simple Unix shell written in Python.
 
-Shell 4 bosqichda ishlaydi:
+The shell works in 4 stages:
 
-    1. lexer.py    — qatorni token'larga bo'ladi.
-    2. parser.py   — token'lardan daraxt (AST) quradi.
-    3. expand.py   — $VAR, ~, *.py, qo'shtirnoqlarni ochadi.
-    4. executor.py — buyruqni bajaradi (fork + exec).
+    1. lexer.py    — splits a line into tokens.
+    2. parser.py   — builds a tree (AST) from the tokens.
+    3. expand.py   — expands $VAR, ~, *.py and quotes.
+    4. executor.py — runs the commands (fork + exec).
 
-shell.py bu bosqichlarni birlashtiradi.
-cli.py — buyruq qatori interfeysi (CLI).
+shell.py connects these stages.
+cli.py is the command-line interface (CLI).
 """
 
 __version__ = "0.1.0"

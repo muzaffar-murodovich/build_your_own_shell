@@ -1,17 +1,17 @@
-r"""3-bosqich: Expander (so'zlarni ochish).
+r"""Stage 3: Expander (word expansion).
 
-Expander xom so'zni haqiqiy argumentlarga aylantiradi:
+The expander changes a raw word into real arguments:
 
     ~/code        ->  /Users/ali/code         (tilde)
-    $HOME, ${HOME}->  /Users/ali              (o'zgaruvchi)
-    $?            ->  0                       (oxirgi exit kod)
-    'a $b'        ->  a $b                    (bitta qo'shtirnoq: hech narsa ochilmaydi)
-    "a $HOME"     ->  a /Users/ali            (qo'sh qo'shtirnoq: $ ochiladi)
+    $HOME, ${HOME}->  /Users/ali              (variable)
+    $?            ->  0                       (last exit code)
+    'a $b'        ->  a $b                    (single quotes: nothing expands)
+    "a $HOME"     ->  a /Users/ali            (double quotes: $ expands)
     a\ b          ->  a b                     (backslash)
     *.py          ->  main.py test.py         (glob)
 
-Soddalashtirish: bash qo'shtirnoqsiz $VAR'ni bo'sh joy bo'yicha bo'ladi.
-Biz bo'lmaymiz. Bu kodni ancha soddalashtiradi.
+Simplification: bash splits an unquoted $VAR on spaces.
+We do not split it. This makes the code much simpler.
 """
 
 import glob
@@ -20,25 +20,25 @@ from collections.abc import Callable
 
 from .errors import ShellError
 
-# lookup(name) -> o'zgaruvchi qiymati. Shell bu funksiyani beradi.
+# lookup(name) -> the value of the variable. The shell gives this function.
 Lookup = Callable[[str], str]
 
 
 def expand_word(raw: str, lookup: Lookup) -> list[str]:
-    """Bitta xom so'zni ochib, argumentlar ro'yxatini qaytaring.
+    """Expand one raw word and return a list of arguments.
 
-    Natija 0, 1 yoki ko'p element bo'lishi mumkin:
-      0 — so'z bo'sh o'zgaruvchi edi ($YOQ).
-      1 — oddiy holat.
-      N — glob bir nechta faylni topdi (*.py).
+    The result can have 0, 1 or more items:
+      0 — the word was an empty variable ($NONE).
+      1 — the usual case.
+      N — the glob found more than one file (*.py).
     """
     out: list[str] = []
-    quoted = False     # So'zda qo'shtirnoq bormi?
-    has_glob = False   # So'zda qo'shtirnoqsiz *, ? yoki [ bormi?
+    quoted = False     # Does the word have quotes?
+    has_glob = False   # Does the word have an unquoted *, ? or [?
     i = 0
     n = len(raw)
 
-    # Tilde faqat so'z boshida ochiladi: "~" yoki "~/...".
+    # The tilde expands only at the start of a word: "~" or "~/...".
     if raw == "~" or raw.startswith("~/"):
         out.append(os.environ.get("HOME", "~"))
         i = 1
@@ -47,14 +47,14 @@ def expand_word(raw: str, lookup: Lookup) -> list[str]:
         ch = raw[i]
 
         if ch == "'":
-            # Bitta qo'shtirnoq: ichini o'zgartirmasdan oling.
+            # Single quotes: take the text without changes.
             end = raw.index("'", i + 1)
             out.append(raw[i + 1:end])
             quoted = True
             i = end + 1
 
         elif ch == '"':
-            # Qo'sh qo'shtirnoq: $ ochiladi, \" va \\ himoyalanadi.
+            # Double quotes: $ expands, \" and \\ are protected.
             quoted = True
             i += 1
             while i < n and raw[i] != '"':
@@ -67,10 +67,10 @@ def expand_word(raw: str, lookup: Lookup) -> list[str]:
                 else:
                     out.append(raw[i])
                     i += 1
-            i += 1  # Yopuvchi " ni o'tkazing.
+            i += 1  # Move past the closing ".
 
         elif ch == "\\":
-            # Backslash: keyingi belgini o'zgartirmasdan oling.
+            # Backslash: take the next character without changes.
             if i + 1 < n:
                 out.append(raw[i + 1])
             i += 2
@@ -87,14 +87,14 @@ def expand_word(raw: str, lookup: Lookup) -> list[str]:
 
     word = "".join(out)
 
-    # Qo'shtirnoqsiz bo'sh so'z yo'qoladi. `echo $YOQ` -> argument yo'q.
-    # Lekin `echo ""` bitta bo'sh argument beradi.
+    # An empty unquoted word disappears. `echo $NONE` -> no argument.
+    # But `echo ""` gives one empty argument.
     if not word and not quoted:
         return []
 
     if has_glob:
         matches = sorted(glob.glob(word))
-        # Hech narsa topilmasa, bash so'zni o'zgartirmaydi. Biz ham.
+        # If there is no match, bash keeps the word without changes. We do the same.
         if matches:
             return matches
 
@@ -102,7 +102,7 @@ def expand_word(raw: str, lookup: Lookup) -> list[str]:
 
 
 def expand_words(raw_words: list[str], lookup: Lookup) -> list[str]:
-    """Bir nechta so'zni oching va natijalarni birlashtiring."""
+    """Expand more than one word and join the results."""
     result: list[str] = []
     for raw in raw_words:
         result.extend(expand_word(raw, lookup))
@@ -110,37 +110,37 @@ def expand_words(raw_words: list[str], lookup: Lookup) -> list[str]:
 
 
 def expand_single(raw: str, lookup: Lookup) -> str:
-    """Redirect fayl nomi uchun: natija aniq bitta so'z bo'lishi shart."""
+    """For a redirect file name: the result must be exactly one word."""
     words = expand_word(raw, lookup)
     if len(words) != 1:
-        raise ShellError(f"{raw}: noaniq redirect (ambiguous redirect)")
+        raise ShellError(f"{raw}: ambiguous redirect")
     return words[0]
 
 
 def _read_variable(raw: str, i: int, lookup: Lookup) -> tuple[str, int]:
-    """raw[i] == "$". O'zgaruvchini o'qing.
+    """raw[i] == "$". Read the variable.
 
-    Qaytaradi: (qiymat, o'zgaruvchidan keyingi indeks).
+    Returns: (value, the index after the variable).
     """
     j = i + 1
 
-    # ${NAME} shakli.
+    # The ${NAME} form.
     if j < len(raw) and raw[j] == "{":
         end = raw.find("}", j)
         if end == -1:
-            raise ShellError("'${' yopilmagan")
+            raise ShellError("unclosed '${'")
         return lookup(raw[j + 1:end]), end + 1
 
-    # Maxsus o'zgaruvchilar: $? (exit kod), $$ (PID), $0 (shell nomi).
+    # Special variables: $? (exit code), $$ (PID), $0 (shell name).
     if j < len(raw) and raw[j] in "?$0":
         return lookup(raw[j]), j + 1
 
-    # Oddiy nom: harf, raqam va "_".
+    # A usual name: letters, digits and "_".
     k = j
     while k < len(raw) and (raw[k].isalnum() or raw[k] == "_"):
         k += 1
 
-    # "$" dan keyin nom yo'q. "$" oddiy belgi bo'ladi.
+    # There is no name after "$". The "$" is a usual character.
     if k == j:
         return "$", j
 

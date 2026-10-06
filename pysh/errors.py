@@ -1,39 +1,39 @@
-"""Shell xatolari.
+"""Shell errors.
 
-Barcha xatolar bitta joyda. Bu kodni o'qishni osonlashtiradi.
+All errors are in one place. This makes the code easier to read.
 """
 
 import sys
 
 
 class ShellError(Exception):
-    """Foydalanuvchiga ko'rsatiladigan xato. Shell to'xtamaydi."""
+    """An error to show to the user. The shell does not stop."""
 
 
 class LexError(ShellError):
-    """Lexer xatosi. Misol: qo'shtirnoq yopilmagan."""
+    """A lexer error. Example: a quote is not closed."""
 
 
 class ParseError(ShellError):
-    """Sintaksis xatosi. Misol: `ls |` (pipe'dan keyin buyruq yo'q)."""
+    """A syntax error. Example: `ls |` (no command after the pipe)."""
 
 
 class ShellExit(Exception):
-    """`exit` buyrug'i shu signalni yuboradi. Shell to'xtaydi."""
+    """The `exit` command sends this signal. The shell stops."""
 
     def __init__(self, code: int = 0):
         super().__init__(code)
-        # Exit kod 0..255 oralig'ida bo'ladi (Unix qoidasi).
+        # An exit code is in the range 0..255 (Unix rule).
         self.code = code & 0xFF
 
 
 def error(message: str) -> None:
-    """Xato xabarini stderr'ga yozing."""
+    """Write an error message to stderr."""
     print(f"pysh: {message}", file=sys.stderr)
 
 
 def describe_os_error(exc: OSError) -> str:
-    """OSError'dan qisqa va tushunarli xabar yasang."""
+    """Make a short and clear message from an OSError."""
     if exc.filename:
         return f"{exc.filename}: {exc.strerror}"
     return exc.strerror or str(exc)

@@ -1,4 +1,4 @@
-"""`python -m pysh` buyrug'i shu faylni ishga tushiradi."""
+"""The `python -m pysh` command runs this file."""
 
 import sys
 

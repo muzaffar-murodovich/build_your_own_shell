@@ -1,4 +1,4 @@
-"""Lexer va parser uchun unit testlar."""
+"""Unit tests for the lexer and the parser."""
 
 import pytest
 
@@ -23,7 +23,7 @@ def test_operators_split_words():
 
 
 def test_quotes_keep_spaces_raw():
-    # Lexer qo'shtirnoqlarni olib tashlamaydi. Bu expander ishi.
+    # The lexer does not remove quotes. This is the work of the expander.
     assert words("""echo "a b" 'c d'""") == ["echo", '"a b"', "'c d'"]
 
 
@@ -33,13 +33,13 @@ def test_two_redirect_only_at_word_start():
 
 
 def test_comment():
-    assert words("ls # izoh") == ["ls"]
+    assert words("ls # comment") == ["ls"]
     assert words("echo a#b") == ["echo", "a#b"]
 
 
 def test_unclosed_quote():
     with pytest.raises(LexError):
-        tokenize('echo "salom')
+        tokenize('echo "hello')
 
 
 def test_parse_structure():

@@ -1,11 +1,11 @@
-"""CLI — buyruq qatori interfeysi.
+"""CLI — the command-line interface.
 
-pysh 4 xil rejimda ishlaydi:
+pysh works in 4 modes:
 
-    pysh                   interaktiv rejim (REPL)
-    pysh -c "ls | wc -l"   bitta buyruqni bajaring va chiqing
-    pysh script.sh         skript faylini bajaring
-    echo "ls" | pysh       stdin'dan buyruqlarni o'qing
+    pysh                   interactive mode (REPL)
+    pysh -c "ls | wc -l"   run one command and exit
+    pysh script.sh         run a script file
+    echo "ls" | pysh       read the commands from stdin
 """
 
 import argparse
@@ -19,16 +19,16 @@ from .shell import Shell, is_interactive_terminal
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pysh",
-        description="pysh — Python'da yozilgan oddiy Unix shell.",
-        epilog="Misol: pysh -c 'ls -l | grep py > natija.txt'",
+        description="pysh — a simple Unix shell written in Python.",
+        epilog="Example: pysh -c 'ls -l | grep py > result.txt'",
     )
     parser.add_argument(
-        "-c", dest="command", metavar="BUYRUQ",
-        help="bu buyruqni bajaring va chiqing",
+        "-c", dest="command", metavar="COMMAND",
+        help="run this command and exit",
     )
     parser.add_argument(
         "script", nargs="?",
-        help="bajarish uchun skript fayli",
+        help="a script file to run",
     )
     parser.add_argument(
         "--version", action="version", version=f"pysh {__version__}",
@@ -37,7 +37,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Kirish nuqtasi. Exit kodni qaytaradi."""
+    """The entry point. Returns the exit code."""
     args = build_parser().parse_args(argv)
 
     interactive = args.command is None and args.script is None and is_interactive_terminal()
@@ -45,7 +45,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.command is not None:
-            # -c qiymatida bir nechta qator bo'lishi mumkin.
+            # The -c value can have more than one line.
             return shell.run_lines(args.command.splitlines())
         if args.script is not None:
             return shell.run_file(args.script)
@@ -53,5 +53,5 @@ def main(argv: list[str] | None = None) -> int:
             return shell.repl()
         return shell.run_lines(sys.stdin)
     except ShellExit as exc:
-        # `exit` buyrug'i istalgan rejimda shell'ni to'xtatadi.
+        # The `exit` command stops the shell in all modes.
         return exc.code

@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pysh"
 version = "0.1.0"
-description = "Python'da yozilgan oddiy Unix shell (Build Your Own X)"
+description = "A simple Unix shell written in Python (Build Your Own X)"
 requires-python = ">=3.10"
 dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest"]
 
-# `pip install -e .` dan keyin terminalda `pysh` buyrug'i paydo bo'ladi.
+# After `pip install -e .`, the `pysh` command is available in the terminal.
 [project.scripts]
 pysh = "pysh.cli:main"
 

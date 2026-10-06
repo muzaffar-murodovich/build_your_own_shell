@@ -1,4 +1,4 @@
-"""Expander uchun unit testlar."""
+"""Unit tests for the expander."""
 
 from pysh.expand import expand_word
 
@@ -17,14 +17,14 @@ def test_variables():
 
 def test_quotes():
     assert expand("'$NAME'") == ["$NAME"]
-    assert expand('"salom $NAME"') == ["salom Ali"]
+    assert expand('"hello $NAME"') == ["hello Ali"]
     assert expand(r'"a \"b\""') == ['a "b"']
     assert expand(r"a\ b") == ["a b"]
 
 
 def test_empty_values():
-    assert expand("$YOQ") == []      # Qo'shtirnoqsiz bo'sh so'z yo'qoladi.
-    assert expand('""') == [""]      # Qo'shtirnoqli bo'sh so'z qoladi.
+    assert expand("$NONE") == []      # An empty unquoted word disappears.
+    assert expand('""') == [""]      # An empty quoted word stays.
 
 
 def test_tilde(monkeypatch):
@@ -39,4 +39,4 @@ def test_glob(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     assert expand("*.py") == ["a.py", "b.py"]
     assert expand("'*.py'") == ["*.py"]
-    assert expand("*.yoq") == ["*.yoq"]
+    assert expand("*.none") == ["*.none"]
